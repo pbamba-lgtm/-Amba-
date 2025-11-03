@@ -1,0 +1,56 @@
+  body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .tools {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .tool {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #f9f9f9;
+            transition: all 0.2s;
+        }
+        .tool.active {
+            border-color: #4CAF50;
+            background-color: #e8f5e9;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            margin-bottom: 20px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        .info {
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .plant-icon {
+            font-size: 24px;
+        }

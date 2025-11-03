@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сельскохозяйственный симулятор</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(10, 50px);
+            grid-template-rows: repeat(10, 50px);
+            gap: 2px;
+            background-color: #333;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        
+        .cell {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #555;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .tools {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .tool {
+            padding: 10px 15px;
+            border: 2px solid #333;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: white;
+            font-weight: bold;
+        }
+        
+        .tool.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .plant {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        .info-panel {
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Сельскохозяйственный симулятор</h1>
+        
+        <div class="tools">
+            <div class="tool active" data-tool="shovel">Лопата</div>
+            <div class="tool" data-tool="bucket">Ведро</div>
+            <div class="tool" data-tool="swampweed">Семена болотника</div>
+            <div class="tool" data-tool="potato">Семена картошки</div>
+            <div class="tool" data-tool="cactus">Семена кактуса</div>
+        </div>
+        
+        <div class="grid" id="grid"></div>
+        
+        <div class="info-panel">
+            <h3>Информация о клетке</h3>
+            <p id="cell-info">Выберите клетку для просмотра информации</p>
+        </div>
+    </div>
+
+    <script>
+        // Базовый класс Клетка
+        class Cell {
+            constructor(type, moisture = 0) {
+                this.type = type; // 'earth' или 'water'
+                this.moisture = moisture; // Уровень влажности от 0 до 100
+                this.plant = null; // Растение на клетке
+            }
+            
+            // Метод для обновления влажности на основе соседних клеток с водой
+            updateMoisture(neighbors) {
+                if (this.type === 'water') {
+                    this.moisture = 100;
+                    return;
+                }
+                
+                let waterDistance = this.calculateWaterDistance(neighbors);
+                // Чем ближе вода, тем выше влажность
+                this.moisture = Math.max(0, 100 - (waterDistance * 20));
+            }
+            
+            // Расчет расстояния до ближайшей воды
+            calculateWaterDistance(neighbors) {
+                if (this.type === 'water') return 0;
+                
+                let minDistance = Infinity;
+                
+                // Проверяем всех соседей рекурсивно
+                const checkNeighbors = (cells, distance) => {
+                    if (distance >= minDistance) return;
+                    
+                    for (let cell of cells) {
+                        if (cell.type === 'water') {
+                            minDistance = Math.min(minDistance, distance);
+                            return;
+                        }
+                    }
+                    
+                    // Если вода не найдена, проверяем соседей соседей
+                    let nextNeighbors = [];
+                    for (let cell of cells) {
+                        // Получаем соседей для каждой клетки (здесь упрощенно)
+                        // В реальной реализации нужно передавать всю сетку и позиции
+                        nextNeighbors = nextNeighbors.concat(cell.getNeighbors());
+                    }
+                    
+                    if (nextNeighbors.length > 0) {
+                        checkNeighbors(nextNeighbors, distance + 1);
+                    }
+                };
+                
+                checkNeighbors(neighbors, 1);
+                return minDistance === Infinity ? 10 : minDistance; // Максимальное расстояние 10
+            }
+            
+            // Получение соседей (заглушка, должна быть реализована в контексте сетки)
+            getNeighbors() {
+                return []; // В реальной реализации возвращаем реальных соседей
+            }
+            
+            // Метод для получения цвета клетки на основе влажности
+            getColor() {
+                if (this.type === 'water') {
+                    return '#1E90FF'; // Синий для воды
+                }
+                
+                // От желтого (сухо) до темно-коричневого (влажно)
+                const hue = 30; // Оттенок коричневого
+                const saturation = 70; // Насыщенность
+                const lightness = 50 - (this.moisture / 100) * 30; // От светлого к темному
+                
+                return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            }
+            
+            // Метод для посадки растения
+            plantSeed(plantType) {
+                if (this.type !== 'earth' || this.plant) {
+                    return false; // Нельзя посадить на воду или если уже есть растение
+                }
+                
+                switch(plantType) {
+                    case 'swampweed':
+                        this.plant = new Swampweed();
+                        break;
+                    case 'potato':
+                        this.plant = new Potato();
+                        break;
+                    case 'cactus':
+                        this.plant = new Cactus();
+                        break;
+                    default:
+                        return false;
+                }
+                
+                return true;
+            }
+            
+            // Метод для удаления растения (лопатой)
+            dig() {
+                if (this.plant) {
+                    this.plant = null;
+                    return true;
+                }
+                return false;
+            }
+            
+            // Метод для изменения типа клетки (вода/земля)
+            changeType(newType) {
+                if (newType === 'water' || newType === 'earth') {
+                    this.type = newType;
+                    if (newType === 'water') {
+                        this.moisture = 100;
+                    }
+                    return true;
+                }
+                return false;
+            }
+            
+            // Метод для обновления состояния клетки и растения
+            update() {
+                if (this.plant) {
+                    this.plant.grow(this.moisture);
+                }
+            }
+        }
+
+        // Базовый класс Растение
+        class Plant {
+            constructor(name, minMoisture, maxMoisture, growthStages) {
+                this.name = name;
+                this.minMoisture = minMoisture; // Минимальная влажность для роста
+                this.maxMoisture = maxMoisture; // Максимальная влажность для роста
+                this.growthStage = 0; // Текущая стадия роста (0 - нет роста)
+                this.growthStages = growthStages; // Количество стадий роста
+                this.isAlive = true;
+            }
+            
+            // Метод для роста растения
+            grow(moisture) {
+                if (!this.isAlive) return;
+                
+                // Проверяем, подходит ли влажность для растения
+                if (moisture < this.minMoisture || moisture > this.maxMoisture) {
+                    this.isAlive = false;
+                    return;
+                }
+                
+                // Увеличиваем стадию роста, если растение живо
+                if (this.growthStage < this.growthStages) {
+                    this.growthStage++;
+                }
+            }
+            
+            // Метод для получения цвета растения на основе стадии роста
+            getColor() {
+                if (!this.isAlive) return '#8B0000'; // Темно-красный для мертвого растения
+                
+                // Разные цвета для разных стадий роста
+                const growthRatio = this.growthStage / this.growthStages;
+                const hue = 120 * growthRatio; // От красного к зеленому
+                return `hsl(${hue}, 70%, 50%)`;
+            }
+            
+            // Метод для получения текстового представления растения
+            getDisplay() {
+                if (!this.isAlive) return '💀';
+                
+                // Разные символы для разных стадий роста
+                if (this.growthStage === 0) return '🌱';
+                if (this.growthStage < this.growthStages / 2) return '🪴';
+                return '🌿';
+            }
+        }
+
+        // Классы конкретных растений
+
+        class Swampweed extends Plant {
+            constructor() {
+                super('Болотник', 70, 100, 5); // Растет только при высокой влажности
+            }
+            
+            getDisplay() {
+                if (!this.isAlive) return '💀';
+                if (this.growthStage === 0) return '🌱';
+                if (this.growthStage < this.growthStages / 2) return '🪴';
+                return '🌿'; // Специальный символ для болотника
+            }
+        }
+
+        class Potato extends Plant {
+            constructor() {
+                super('Картошка', 40, 80, 7); // Средняя влажность
+            }
+            
+            getDisplay() {
+                if (!this.isAlive) return '💀';
+                if (this.growthStage === 0) return '🌱';
+                if (this.growthStage < this.growthStages / 2) return '🪴';
+                return '🥔'; // Специальный символ для картошки
+            }
+        }
+
+        class Cactus extends Plant {
+            constructor() {
+                super('Кактус', 0, 30, 4); // Низкая влажность
+            }
+            
+            getDisplay() {
+                if (!this.isAlive) return '💀';
+                if (this.growthStage === 0) return '🌱';
+                if (this.growthStage < this.growthStages / 2) return '🪴';
+                return '🌵'; // Специальный символ для кактуса
+            }
+        }
+
+        // Класс для управления игрой
+        class Game {
+            constructor(gridSize = 10) {
+                this.gridSize = gridSize;
+                this.grid = [];
+                this.selectedTool = 'shovel';
+                this.initGrid();
+                this.setupEventListeners();
+                this.startGameLoop();
+            }
+            
+            // Инициализация игровой сетки
+            initGrid() {
+                const gridElement = document.getElementById('grid');
+                gridElement.innerHTML = '';
+                
+                // Создаем сетку клеток
+                for (let i = 0; i < this.gridSize; i++) {
+                    this.grid[i] = [];
+                    for (let j = 0; j < this.gridSize; j++) {
+                        // Случайно создаем землю или воду
+                        const type = Math.random() > 0.8 ? 'water' : 'earth';
+                        const cell = new Cell(type);
+                        this.grid[i][j] = cell;
+                        
+                        // Создаем элемент DOM для клетки
+                        const cellElement = document.createElement('div');
+                        cellElement.className = 'cell';
+                        cellElement.dataset.row = i;
+                        cellElement.dataset.col = j;
+                        cellElement.style.backgroundColor = cell.getColor();
+                        
+                        // Добавляем обработчик клика
+                        cellElement.addEventListener('click', () => this.handleCellClick(i, j));
+                        
+                        gridElement.appendChild(cellElement);
+                    }
+                }
+                
+                // Обновляем влажность всех клеток
+                this.updateAllMoisture();
+            }
+            
+            // Обновление влажности всех клеток на основе соседей
+            updateAllMoisture() {
+                for (let i = 0; i < this.gridSize; i++) {
+                    for (let j = 0; j < this.gridSize; j++) {
+                        const neighbors = this.getNeighbors(i, j);
+                        this.grid[i][j].updateMoisture(neighbors);
+                    }
+                }
+                
+                // Обновляем отображение
+                this.renderGrid();
+            }
+            
+            // Получение соседей клетки
+            getNeighbors(row, col) {
+                const neighbors = [];
+                for (let i = Math.max(0, row - 1); i <= Math.min(this.gridSize - 1, row + 1); i++) {
+                    for (let j = Math.max(0, col - 1); j <= Math.min(this.gridSize - 1, col + 1); j++) {
+                        if (i !== row || j !== col) {
+                            neighbors.push(this.grid[i][j]);
+                        }
+                    }
+                }
+                return neighbors;
+            }
+            
+            // Обработка клика по клетке
+            handleCellClick(row, col) {
+                const cell = this.grid[row][col];
+                
+                switch(this.selectedTool) {
+                    case 'shovel':
+                        if (cell.dig()) {
+                            console.log('Растение выкопано');
+                        } else if (cell.type === 'water') {
+                            cell.changeType('earth');
+                            console.log('Вода превращена в землю');
+                        }
+                        break;
+                    case 'bucket':
+                        if (cell.type === 'earth') {
+                            cell.changeType('water');
+                            console.log('Земля превращена в воду');
+                        }
+                        break;
+                    case 'swampweed':
+                    case 'potato':
+                    case 'cactus':
+                        if (cell.plantSeed(this.selectedTool)) {
+                            console.log(`Посажено растение: ${this.selectedTool}`);
+                        }
+                        break;
+                }
+                
+                // Обновляем влажность после изменений
+                this.updateAllMoisture();
+                
+                // Обновляем информацию о клетке
+                this.updateCellInfo(row, col);
+            }
+            
+            // Настройка обработчиков событий
+            setupEventListeners() {
+                // Обработчики для инструментов
+                const tools = document.querySelectorAll('.tool');
+                tools.forEach(tool => {
+                    tool.addEventListener('click', () => {
+                        tools.forEach(t => t.classList.remove('active'));
+                        tool.classList.add('active');
+                        this.selectedTool = tool.dataset.tool;
+                    });
+                });
+            }
+            
+            // Обновление информации о клетке
+            updateCellInfo(row, col) {
+                const cell = this.grid[row][col];
+                const infoElement = document.getElementById('cell-info');
+                
+                let info = `Тип: ${cell.type === 'earth' ? 'Земля' : 'Вода'}<br>`;
+                info += `Влажность: ${Math.round(cell.moisture)}%<br>`;
+                
+                if (cell.plant) {
+                    info += `Растение: ${cell.plant.name}<br>`;
+                    info += `Стадия роста: ${cell.plant.growthStage}/${cell.plant.growthStages}<br>`;
+                    info += `Состояние: ${cell.plant.isAlive ? 'Живое' : 'Мертвое'}<br>`;
+                } else {
+                    info += 'Растение: нет<br>';
+                }
+                
+                infoElement.innerHTML = info;
+            }
+            
+            // Отрисовка сетки
+            renderGrid() {
+                const gridElement = document.getElementById('grid');
+                const cells = gridElement.querySelectorAll('.cell');
+                
+                cells.forEach(cellElement => {
+                    const row = parseInt(cellElement.dataset.row);
+                    const col = parseInt(cellElement.dataset.col);
+                    const cell = this.grid[row][col];
+                    
+                    // Обновляем цвет фона
+                    cellElement.style.backgroundColor = cell.getColor();
+                    
+                    // Очищаем содержимое
+                    cellElement.innerHTML = '';
+                    
+                    // Добавляем растение, если есть
+                    if (cell.plant) {
+                        const plantElement = document.createElement('div');
+                        plantElement.className = 'plant';
+                        plantElement.textContent = cell.plant.getDisplay();
+                        cellElement.appendChild(plantElement);
+                    }
+                });
+            }
+            
+            // Игровой цикл
+            startGameLoop() {
+                setInterval(() => {
+                    // Обновляем все клетки
+                    for (let i = 0; i < this.gridSize; i++) {
+                        for (let j = 0; j < this.gridSize; j++) {
+                            this.grid[i][j].update();
+                        }
+                    }
+                    
+                    // Перерисовываем сетку
+                    this.renderGrid();
+                }, 1000); // Обновление каждую секунду
+            }
+        }
+
+        // Инициализация игры при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            new Game(10);
+        });
+    </script>
+</body>
+</html>
